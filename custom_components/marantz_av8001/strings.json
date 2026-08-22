@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Marantz AV8001",
+        "description": "Enter the IP address and port of your RS232-to-IP gateway.",
+        "data": {
+          "name": "Name",
+          "host": "IP address",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect. Check the IP address and port of the gateway."
+    },
+    "abort": {
+      "already_configured": "This gateway is already configured."
+    }
+  }
+}
