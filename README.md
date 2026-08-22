@@ -1,22 +1,26 @@
 # Marantz AV8003 for Home Assistant
 
 A custom Home Assistant integration to control a Marantz AV8003 pre-amp/processor
-through an RS232-to-IP gateway (e.g. Global Cache, Moxa NPort, USR-TCP232, or
-similar transparent serial-to-TCP bridge).
+through an RS232-to-IP gateway (e.g. a USR-TCP232, Elfin, Moxa NPort, or similar
+transparent serial-to-TCP bridge).
 
 ## Status
 
-Early scaffold. Power, volume, mute and input select are implemented for the
-main zone as a `media_player` entity. **The command set has not yet been
-verified against a real AV8003** — see [Protocol](#protocol) below.
+Power, volume, mute, and input select are implemented for the main zone as a
+`media_player` entity, built on the [`marantz-rs232`](https://github.com/home-assistant-libs/marantz-rs232)
+library. **Verified working against a real AV8003** over its RS232-to-IP
+gateway — see [Protocol](#protocol) below.
 
 ## Requirements
 
 - An RS232-to-IP gateway wired to the AV8003's RS-232 port, configured for
   **9600 baud, 8 data bits, no parity, 1 stop bit** (the AV8003's fixed
   serial settings), and set to bridge that serial port to a TCP port on your
-  network (raw/transparent mode, not Telnet negotiation).
-- The gateway's IP address and TCP port.
+  network in raw/transparent passthrough mode (not Telnet option
+  negotiation, not RFC2217).
+- The gateway's IP address and TCP port (commonly `8899` for this class of
+  device — that's the default this integration suggests, but confirm on
+  your gateway).
 
 ## Installation
 
@@ -38,43 +42,52 @@ asked for a name, the gateway's **IP address**, and **port**.
 
 ## Protocol
 
-The AV8003 (2009) uses the ASCII serial command protocol shared across
-Denon/Marantz AV receivers and processors of that generation (2-letter
-COMMAND + PARAMETER, terminated with CR `0x0D`, e.g. `PWON\r`). This
-integration was built against the documented protocol for its Denon sibling
-**AVR-4310CI / AVC-4310** (D&M Holdings "DENON AVR control protocol
-Ver. 6.3.0.a", released 21.Apr.'09, updated 02.Mar.'10) — the AVC-4310 is the
-same 9.1-channel pre-amp/processor platform as the AV8003 (HDMI 1.3a, dual
-HDMI outputs, Audyssey MultEQ XT). Core commands implemented:
+The AV8003 (2009) does **not** use the shared Denon/Marantz `PW`/`MV`/`SI`
+ASCII protocol used by same-era Denon models — it speaks Marantz's older,
+distinct **"legacy" protocol** from the 2001–2010 SR-series lineage, framed
+as `@CMD:VALUE\r` (e.g. `@PWR:2\r` for power on, `@VOL:?\r` to query
+volume). This was initially built against the wrong (Denon-shared) protocol;
+that was corrected after finding
+[`home-assistant-libs/marantz-rs232`](https://github.com/home-assistant-libs/marantz-rs232),
+which documents the AV8003 explicitly under its `v2007` protocol module, and
+confirming it empirically — connecting to the real gateway and getting
+coherent responses (`@PWR:2`, `@VOL: 00`, `@SRC:11`, etc.) that matched the
+library's decoding exactly.
 
-| Function     | Command                          |
-|--------------|-----------------------------------|
-| Power on/off | `PWON` / `PWSTANDBY` / `PW?`      |
-| Volume       | `MVUP` / `MVDOWN` / `MV**` / `MV?`|
-| Mute         | `MUON` / `MUOFF` / `MU?`          |
-| Input select | `SI<source>` / `SI?`              |
+This integration depends on `marantz-rs232` (declared in `manifest.json`)
+rather than reimplementing the protocol. It talks to the gateway over
+`serialx`'s `socket://host:port` transport, which treats a raw TCP
+connection as if it were a local serial port — a good fit for these
+RS232-to-IP bridges.
 
-If you find an AV8003-specific RS232 protocol document, please compare it
-against `custom_components/marantz_av8003/const.py` and
-`custom_components/marantz_av8003/media_player.py` — command codes,
-especially the input source list, may need adjusting for what's actually
-wired on your unit (note this generation splits the older `TV/CBL` source
-into separate `TV` and `SAT/CBL` codes).
+Core commands used, via the library's `V2007MainPlayer`:
 
-Not yet implemented, but supported by the shared protocol and straightforward
-to add once confirmed against the real unit:
-- Zone 2 / Zone 3 power, volume, mute (`Z2`, `Z3` commands)
-- Surround/sound mode select (`MS` command)
-- Tone controls and Audyssey MultEQ XT / Dynamic EQ / Dynamic Volume
-  (`PS` commands)
-- HDMI output routing and resolution scaling (`VS` commands)
+| Function     | Wire command                         |
+|--------------|---------------------------------------|
+| Power on/off | `@PWR:2` / `@PWR:1` / query `@PWR:?`  |
+| Volume       | `@VOL:1` (up) / `@VOL:2` (down) / `@VOL:0xxxy` (set) / query `@VOL:?` |
+| Mute         | `@AMT:2` / `@AMT:1` / query `@AMT:?`  |
+| Input select | `@SRC:<code>` / query `@SRC:?`        |
+
+The source list in `const.py` (`SOURCE_LABELS`) is restricted to the codes
+the library documents as valid for the AV8003 specifically (TV, DVD, VCR1,
+VCR2, DSS/VCR2, Network, Aux, CD/CD-R, Tape, Tuner, FM, AM, XM, Sirius).
+
+Not yet implemented, but trivially available via the library's
+`V2007MainPlayer` once there's appetite for it:
+- Zone 2/3 (Multi Room A/B) power, volume, source, mute
+- Surround mode select and cycling
+- Bass/treble, night mode, sleep timer, HDMI channel/audio routing
+- Tuner control, HD Radio metadata
 
 ## Development notes
 
-- `protocol.py` holds a transport-agnostic asyncio TCP client with automatic
-  reconnect; it has no Home Assistant imports so it can be unit tested
-  standalone.
-- `__init__.py` bridges the client's incoming lines and connection state to
-  the entity via Home Assistant's dispatcher, so the entity updates
-  immediately on unsolicited state changes from the AVR (e.g. someone using
-  the physical remote) rather than polling.
+- `coordinator.py` wraps `marantz_rs232.MarantzV2007Receiver` with a
+  reconnect loop — the library itself is a connect-once client and doesn't
+  retry on its own, so a gateway reboot or network blip would otherwise
+  require reloading the config entry.
+- `media_player.py` reads straight through to the live receiver state
+  (`connection.receiver.main`) rather than caching a local copy, and
+  subscribes to the receiver's push notifications so the entity updates
+  immediately on state changes (including ones caused by someone using the
+  physical remote) rather than polling.

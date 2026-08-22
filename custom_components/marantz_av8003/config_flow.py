@@ -10,8 +10,9 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
+from marantz_rs232 import MarantzV2007Receiver
 
-from .const import DEFAULT_NAME, DEFAULT_PORT, DOMAIN
+from .const import CONNECT_TIMEOUT, DEFAULT_NAME, DEFAULT_PORT, DOMAIN, MODEL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,36 +25,18 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-async def _async_test_connection(host: str, port: int) -> bool:
-    """Try to open a TCP connection and get a power-status response."""
-    try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, port), timeout=5
-        )
-    except (OSError, asyncio.TimeoutError) as err:
-        raise CannotConnect from err
-
-    try:
-        writer.write(b"PW?\r")
-        await writer.drain()
-        try:
-            data = await asyncio.wait_for(reader.read(64), timeout=3)
-        except asyncio.TimeoutError as err:
-            raise CannotConnect from err
-        if not data:
-            raise CannotConnect
-    finally:
-        writer.close()
-        try:
-            await writer.wait_closed()
-        except OSError:
-            pass
-
-    return True
-
-
 class CannotConnect(Exception):
     """Error to indicate we cannot connect to the gateway."""
+
+
+async def _async_test_connection(host: str, port: int) -> None:
+    receiver = MarantzV2007Receiver(f"socket://{host}:{port}", model=MODEL)
+    try:
+        await asyncio.wait_for(receiver.connect(), timeout=CONNECT_TIMEOUT)
+    except (ConnectionError, OSError, asyncio.TimeoutError) as err:
+        raise CannotConnect from err
+    finally:
+        await receiver.disconnect()
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):

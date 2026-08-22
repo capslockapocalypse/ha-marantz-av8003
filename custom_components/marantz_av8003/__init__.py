@@ -5,38 +5,20 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import DOMAIN
-from .protocol import AV8003Client
+from .coordinator import AV8003Connection
 
 PLATFORMS: list[Platform] = [Platform.MEDIA_PLAYER]
 
 
-def signal_update(entry_id: str) -> str:
-    """Return the dispatcher signal used to push protocol lines to the entity."""
-    return f"{DOMAIN}_{entry_id}_update"
-
-
-def signal_connection(entry_id: str) -> str:
-    """Return the dispatcher signal used to push connection state to the entity."""
-    return f"{DOMAIN}_{entry_id}_connection"
-
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Marantz AV8003 from a config entry."""
-    update_signal = signal_update(entry.entry_id)
-    connection_signal = signal_connection(entry.entry_id)
-    client = AV8003Client(
-        entry.data[CONF_HOST],
-        entry.data[CONF_PORT],
-        lambda line: async_dispatcher_send(hass, update_signal, line),
-        lambda connected: async_dispatcher_send(hass, connection_signal, connected),
-    )
-    client.start()
+    connection = AV8003Connection(entry.data[CONF_HOST], entry.data[CONF_PORT])
+    connection.start()
 
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = client
+    hass.data[DOMAIN][entry.entry_id] = connection
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
@@ -46,6 +28,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        client: AV8003Client = hass.data[DOMAIN].pop(entry.entry_id)
-        await client.stop()
+        connection: AV8003Connection = hass.data[DOMAIN].pop(entry.entry_id)
+        await connection.stop()
     return unload_ok
