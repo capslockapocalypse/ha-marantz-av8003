@@ -6,10 +6,39 @@ transparent serial-to-TCP bridge).
 
 ## Status
 
-Power, volume, mute, and input select are implemented for the main zone as a
-`media_player` entity, built on the [`marantz-rs232`](https://github.com/home-assistant-libs/marantz-rs232)
+Exposes the AV8003 as a Home Assistant **device** with a set of individual
+control entities (not a `media_player`, which can't cleanly represent a
+processor's full control surface). Built on the
+[`marantz-rs232`](https://github.com/home-assistant-libs/marantz-rs232)
 library. **Verified working against a real AV8003** over its RS232-to-IP
 gateway — see [Protocol](#protocol) below.
+
+### Entities
+
+| Platform | Entity | Notes |
+|---|---|---|
+| `switch` | Power | |
+| `switch` | Mute | |
+| `number` | Volume | -80 to +18 dB, 0.5 dB steps |
+| `number` | Bass | -6 to +6 dB |
+| `number` | Treble | -6 to +6 dB |
+| `number` | Sleep Timer | 0-120 minutes |
+| `select` | Source | TV, DVD, VCR 1/2, DSS/VCR2, Network, Aux, CD/CD-R, Tape, Tuner, FM, AM, XM, Sirius |
+| `select` | Surround Mode | ~30 modes reported by the receiver |
+| `select` | HDMI Output | HDMI 1 / HDMI 2 |
+| `select` | HDMI Audio Routing | Amplifier / TV (Passthrough) |
+| `select` | Night Mode | Off / On / Auto |
+| `sensor` (diagnostic) | Input Type, Input Signal, Input State, Signal Format, Sampling Frequency, Firmware Version | read-only |
+| `sensor` (diagnostic, disabled by default) | Channel Status (Raw) | opaque raw value, enable manually if useful |
+
+Not included (scoped out for now, single-zone setup): Zone 2/3, tuner
+frequency/preset control, HD Radio metadata, test tone, menu/cursor
+navigation, video mute, attenuator, 7.1ch input toggle, speaker A/B,
+Dolby Headphone mode, EQ mode, MDAX, THX mode, interlace/progressive
+converter, front key lock, DC triggers. All of these are already exposed by
+the underlying library (`V2007MainPlayer`/`V2007MultiRoomPlayer`) and follow
+the same pattern as the entities above, so adding any of them later is
+mostly a matter of adding a class to the relevant platform file.
 
 ## Requirements
 
@@ -38,7 +67,10 @@ Copy `custom_components/marantz_av8003` into your Home Assistant
 ## Setup
 
 Settings → Devices & Services → Add Integration → "Marantz AV8003". You'll be
-asked for a name, the gateway's **IP address**, and **port**.
+asked for a name, the gateway's **IP address**, and **port**. On startup, the
+integration queries the full protocol state (~35 status queries sent
+sequentially) — this can take several seconds, during which entities show as
+unknown before populating.
 
 ## Protocol
 
@@ -60,25 +92,24 @@ rather than reimplementing the protocol. It talks to the gateway over
 connection as if it were a local serial port — a good fit for these
 RS232-to-IP bridges.
 
-Core commands used, via the library's `V2007MainPlayer`:
+Wire commands behind each entity group, via the library's `V2007MainPlayer`:
 
-| Function     | Wire command                         |
-|--------------|---------------------------------------|
-| Power on/off | `@PWR:2` / `@PWR:1` / query `@PWR:?`  |
-| Volume       | `@VOL:1` (up) / `@VOL:2` (down) / `@VOL:0xxxy` (set) / query `@VOL:?` |
-| Mute         | `@AMT:2` / `@AMT:1` / query `@AMT:?`  |
-| Input select | `@SRC:<code>` / query `@SRC:?`        |
+| Function | Wire command |
+|---|---|
+| Power | `@PWR:2` / `@PWR:1` / query `@PWR:?` |
+| Mute | `@AMT:2` / `@AMT:1` / query `@AMT:?` |
+| Volume | `@VOL:0xxxy` (set) / query `@VOL:?` |
+| Bass / Treble | `@TOB:0xx` / `@TOT:0xx` / query `@TOB:?` / `@TOT:?` |
+| Sleep timer | `@SLP:0xxx` / query `@SLP:?` |
+| Source | `@SRC:<code>` / query `@SRC:?` |
+| Surround mode | `@SUR:0<code>` / query `@SUR:?` |
+| HDMI output | `@HDM:<1\|2>` / query `@HDM:?` |
+| HDMI audio routing | `@HAM:<1\|2>` / query `@HAM:?` |
+| Night mode | `@NGT:<1\|2\|3>` / query `@NGT:?` |
+| Diagnostics | `@INP`/`@ISG`/`@IST`/`@SIG`/`@SFQ`/`@CHS`/`@RSV`, all query-only |
 
 The source list in `const.py` (`SOURCE_LABELS`) is restricted to the codes
-the library documents as valid for the AV8003 specifically (TV, DVD, VCR1,
-VCR2, DSS/VCR2, Network, Aux, CD/CD-R, Tape, Tuner, FM, AM, XM, Sirius).
-
-Not yet implemented, but trivially available via the library's
-`V2007MainPlayer` once there's appetite for it:
-- Zone 2/3 (Multi Room A/B) power, volume, source, mute
-- Surround mode select and cycling
-- Bass/treble, night mode, sleep timer, HDMI channel/audio routing
-- Tuner control, HD Radio metadata
+the library documents as valid for the AV8003 specifically.
 
 ## Development notes
 
@@ -86,8 +117,11 @@ Not yet implemented, but trivially available via the library's
   reconnect loop — the library itself is a connect-once client and doesn't
   retry on its own, so a gateway reboot or network blip would otherwise
   require reloading the config entry.
-- `media_player.py` reads straight through to the live receiver state
-  (`connection.receiver.main`) rather than caching a local copy, and
-  subscribes to the receiver's push notifications so the entity updates
-  immediately on state changes (including ones caused by someone using the
-  physical remote) rather than polling.
+- `entity.py` holds a shared base class (`AV8003Entity`) that every platform
+  entity inherits: device info, unique_id, availability, and subscribing to
+  the receiver's push notifications. Entities read straight through to the
+  live receiver state (`connection.receiver.main`, or `main._state` for the
+  diagnostic fields the library doesn't expose as convenience properties)
+  rather than caching a local copy, so they update immediately on state
+  changes — including ones caused by someone using the physical remote —
+  rather than polling.
