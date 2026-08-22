@@ -1,12 +1,12 @@
-"""Constants for the Marantz AV8001 integration."""
+"""Constants for the Marantz AV8003 integration."""
 
-DOMAIN = "marantz_av8001"
+DOMAIN = "marantz_av8003"
 
 CONF_HOST = "host"
 CONF_PORT = "port"
 
 DEFAULT_PORT = 23
-DEFAULT_NAME = "Marantz AV8001"
+DEFAULT_NAME = "Marantz AV8003"
 
 # Connection / protocol timing
 CONNECT_TIMEOUT = 5
@@ -22,7 +22,8 @@ MV_OFFSET = 80
 MV_MIN = 0
 MV_MAX = 98
 
-# Input sources supported by the shared protocol. The AV8001 will only have a
+# Input sources supported by the shared protocol (per the AVR-4310CI/AVC-4310
+# reference, same generation as the AV8003). The AV8003 will only have a
 # subset of these physically wired; unused ones are harmless to send/ignore.
 SOURCES = {
     "PHONO": "Phono",
@@ -30,11 +31,12 @@ SOURCES = {
     "TUNER": "Tuner",
     "DVD": "DVD",
     "HDP": "HD Radio/HDP",
-    "TV/CBL": "TV/CBL",
-    "SAT": "Sat",
+    "TV": "TV",
+    "SAT/CBL": "Sat/Cbl",
     "VCR": "VCR",
     "DVR": "DVR",
     "V.AUX": "V.Aux",
     "IPOD": "iPod",
+    "USB/IPOD": "USB/iPod",
 }
 SOURCES_REVERSE = {v: k for k, v in SOURCES.items()}

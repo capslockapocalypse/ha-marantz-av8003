@@ -1,4 +1,4 @@
-"""Media player platform for the Marantz AV8001 integration."""
+"""Media player platform for the Marantz AV8003 integration."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import signal_connection, signal_update
 from .const import DOMAIN, MV_MAX, MV_MIN, SOURCES, SOURCES_REVERSE
-from .protocol import AV8001Client, AV8001Error
+from .protocol import AV8003Client, AV8003Error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,13 +26,13 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    """Set up the Marantz AV8001 media player from a config entry."""
-    client: AV8001Client = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([MarantzAV8001MediaPlayer(entry, client)])
+    """Set up the Marantz AV8003 media player from a config entry."""
+    client: AV8003Client = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities([MarantzAV8003MediaPlayer(entry, client)])
 
 
-class MarantzAV8001MediaPlayer(MediaPlayerEntity):
-    """Representation of a Marantz AV8001 main zone."""
+class MarantzAV8003MediaPlayer(MediaPlayerEntity):
+    """Representation of a Marantz AV8003 main zone."""
 
     _attr_should_poll = False
     _attr_supported_features = (
@@ -45,7 +45,7 @@ class MarantzAV8001MediaPlayer(MediaPlayerEntity):
     )
     _attr_source_list = list(SOURCES.values())
 
-    def __init__(self, entry: ConfigEntry, client: AV8001Client) -> None:
+    def __init__(self, entry: ConfigEntry, client: AV8003Client) -> None:
         self._entry = entry
         self._client = client
         self._attr_unique_id = entry.unique_id or entry.entry_id
@@ -54,7 +54,7 @@ class MarantzAV8001MediaPlayer(MediaPlayerEntity):
             identifiers={(DOMAIN, self._attr_unique_id)},
             name=entry.data.get(CONF_NAME),
             manufacturer="Marantz",
-            model="AV8001",
+            model="AV8003",
         )
         self._attr_state = MediaPlayerState.OFF
         self._attr_available = self._client.connected
@@ -87,14 +87,14 @@ class MarantzAV8001MediaPlayer(MediaPlayerEntity):
         for command, prefix in (("PW?", "PW"), ("MV?", "MV"), ("MU?", "MU"), ("SI?", "SI")):
             try:
                 response = await self._client.async_query(command, prefix)
-            except AV8001Error:
+            except AV8003Error:
                 return
             if response:
                 self._handle_line(response)
 
     @callback
     def _handle_line(self, line: str) -> None:
-        """Parse a line pushed from the AV8001 and update entity state."""
+        """Parse a line pushed from the AV8003 and update entity state."""
         changed = True
         if line == "PWON":
             self._attr_state = MediaPlayerState.ON

@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Marantz AV8001",
+        "title": "Connect to Marantz AV8003",
         "description": "Enter the IP address and port of your RS232-to-IP gateway.",
         "data": {
           "name": "Name",

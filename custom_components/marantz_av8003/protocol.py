@@ -1,4 +1,4 @@
-"""Async TCP client for a Marantz AV8001 connected via an RS232-to-IP gateway.
+"""Async TCP client for a Marantz AV8003 connected via an RS232-to-IP gateway.
 
 The gateway is assumed to be a transparent serial-to-TCP bridge (e.g. a Global
 Cache, Moxa NPort, USR-TCP232, etc.) that simply forwards raw bytes to/from the
@@ -22,11 +22,11 @@ UpdateCallback = Callable[[str], None]
 ConnectionCallback = Callable[[bool], None]
 
 
-class AV8001Error(Exception):
-    """Raised for AV8001 client errors."""
+class AV8003Error(Exception):
+    """Raised for AV8003 client errors."""
 
 
-class AV8001Client:
+class AV8003Client:
     """Maintains a persistent connection to the RS232-IP gateway."""
 
     def __init__(
@@ -74,7 +74,7 @@ class AV8001Client:
                 await self._connect_once()
                 await self._read_loop()
             except (OSError, asyncio.TimeoutError) as err:
-                _LOGGER.debug("AV8001 connection error: %s", err)
+                _LOGGER.debug("AV8003 connection error: %s", err)
             finally:
                 await self._close()
             if self._stopping:
@@ -82,11 +82,11 @@ class AV8001Client:
             await asyncio.sleep(RECONNECT_INTERVAL)
 
     async def _connect_once(self) -> None:
-        _LOGGER.debug("Connecting to AV8001 gateway at %s:%s", self._host, self._port)
+        _LOGGER.debug("Connecting to AV8003 gateway at %s:%s", self._host, self._port)
         self._reader, self._writer = await asyncio.wait_for(
             asyncio.open_connection(self._host, self._port), timeout=CONNECT_TIMEOUT
         )
-        _LOGGER.info("Connected to AV8001 gateway at %s:%s", self._host, self._port)
+        _LOGGER.info("Connected to AV8003 gateway at %s:%s", self._host, self._port)
         if self._connection_callback:
             self._connection_callback(True)
 
@@ -105,7 +105,7 @@ class AV8001Client:
                     self._handle_line(line)
 
     def _handle_line(self, line: str) -> None:
-        _LOGGER.debug("AV8001 <- %s", line)
+        _LOGGER.debug("AV8003 <- %s", line)
         for prefix, future in list(self._pending.items()):
             if line.startswith(prefix) and not future.done():
                 future.set_result(line)
@@ -130,15 +130,15 @@ class AV8001Client:
     async def async_send_command(self, command: str) -> None:
         """Send a fire-and-forget command."""
         if self._writer is None:
-            raise AV8001Error("Not connected to AV8001 gateway")
-        _LOGGER.debug("AV8001 -> %s", command)
+            raise AV8003Error("Not connected to AV8003 gateway")
+        _LOGGER.debug("AV8003 -> %s", command)
         self._writer.write((command + TERMINATOR).encode("ascii"))
         await self._writer.drain()
 
     async def async_query(self, command: str, response_prefix: str) -> str | None:
         """Send a request command (e.g. 'PW?') and wait for the matching response."""
         if self._writer is None:
-            raise AV8001Error("Not connected to AV8001 gateway")
+            raise AV8003Error("Not connected to AV8003 gateway")
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
         self._pending[response_prefix] = future

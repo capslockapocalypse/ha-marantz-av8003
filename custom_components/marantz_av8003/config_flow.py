@@ -1,4 +1,4 @@
-"""Config flow for the Marantz AV8001 integration."""
+"""Config flow for the Marantz AV8003 integration."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ class CannotConnect(Exception):
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Marantz AV8001."""
+    """Handle a config flow for Marantz AV8003."""
 
     VERSION = 1
 
