@@ -1,5 +1,24 @@
 # Marantz AV8003 for Home Assistant
 
+> [!WARNING]
+> **Use at your own risk.** This integration was written with the help of
+> [Claude Code](https://claude.com/claude-code), Anthropic's AI coding tool.
+> It has been tested against one real AV8003, but it has not been
+> independently reviewed or tested on other setups.
+>
+> - It sends commands to real hardware. That includes setting volume up to
+>   +18 dB, which can damage speakers or hearing if misused or if a bug
+>   sends the wrong value.
+> - It is provided "as is", with no warranty of any kind (see [LICENSE](LICENSE)).
+>   The author accepts no responsibility for damage to equipment, data loss,
+>   or anything else that results from using it.
+> - It is an unofficial community project. It is not affiliated with,
+>   endorsed by, or supported by Marantz, Sound United, Masimo, Nabu Casa,
+>   or the Home Assistant project. "Marantz" and "AV8003" are trademarks of
+>   their respective owners and are used here only to describe compatibility.
+>
+> Read the code before you install it if you aren't comfortable with that.
+
 A custom Home Assistant integration to control a Marantz AV8003 pre-amp/processor
 through an RS232-to-IP gateway (e.g. a USR-TCP232, Elfin, Moxa NPort, or similar
 transparent serial-to-TCP bridge).
@@ -55,7 +74,8 @@ mostly a matter of adding a class to the relevant platform file.
 
 ### HACS (custom repository)
 
-1. HACS → Integrations → ⋮ → Custom repositories → add this repo URL as an
+1. HACS → ⋮ → Custom repositories → add
+   `https://github.com/capslockapocalypse/ha-marantz-av8003` with type
    "Integration".
 2. Install "Marantz AV8003", restart Home Assistant.
 
@@ -116,7 +136,10 @@ the library documents as valid for the AV8003 specifically.
 - `coordinator.py` wraps `marantz_rs232.MarantzV2007Receiver` with a
   reconnect loop — the library itself is a connect-once client and doesn't
   retry on its own, so a gateway reboot or network blip would otherwise
-  require reloading the config entry.
+  require reloading the config entry. It also runs a heartbeat (`@PWR:?`
+  every 30 s, reconnect after 2 missed replies), because a gateway that
+  drops off the network leaves a half-open TCP connection that never
+  reports an error on its own.
 - `entity.py` holds a shared base class (`AV8003Entity`) that every platform
   entity inherits: device info, unique_id, availability, and subscribing to
   the receiver's push notifications. Entities read straight through to the
@@ -125,3 +148,8 @@ the library documents as valid for the AV8003 specifically.
   rather than caching a local copy, so they update immediately on state
   changes — including ones caused by someone using the physical remote —
   rather than polling.
+
+## License
+
+MIT, see [LICENSE](LICENSE). Provided without warranty; see the disclaimer at
+the top of this file.
