@@ -21,6 +21,9 @@ MODEL = V2007Model.AV8003
 
 CONNECT_TIMEOUT = 5
 RECONNECT_INTERVAL = 10
+# Seconds between liveness checks, and how many missed replies mean the link is dead.
+HEARTBEAT_INTERVAL = 30
+HEARTBEAT_MAX_FAILURES = 2
 
 # Valid volume/tone ranges for the v2007 protocol (see marantz_rs232.v2007.protocol).
 MIN_VOLUME_DB = -80.0
